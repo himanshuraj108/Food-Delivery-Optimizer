@@ -113,7 +113,7 @@ export default function Home() {
 
     // Reconstruct path
     const path: number[] = [];
-    let current = end;
+    let current: number | null = end;
     while (current !== null) {
       path.unshift(current);
       current = prev[current];
