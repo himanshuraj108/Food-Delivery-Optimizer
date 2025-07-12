@@ -60,27 +60,31 @@ export default function Home() {
   const [distances, setDistances] = useState<{ [key: number]: number }>({});
   const [explorationColor, setExplorationColor] = useState('#fbbf24'); // yellow
   const [pathColor, setPathColor] = useState('#10b981'); // green
+  const [algoSteps, setAlgoSteps] = useState<string[]>([]);
 
   const dijkstra = useCallback(async (start: number, end: number) => {
     const dist: { [key: number]: number } = {};
     const prev: { [key: number]: number | null } = {};
     const visited = new Set<number>();
     const pq: { node: number; distance: number }[] = [];
+    const steps: string[] = [];
 
     // Initialize distances
     nodes.forEach(node => {
       dist[node.id] = node.id === start ? 0 : Infinity;
       prev[node.id] = null;
     });
+    steps.push(`Initial state: All nodes set to distance ∞ except ${start} (0)`);
 
     pq.push({ node: start, distance: 0 });
 
     while (pq.length > 0) {
       pq.sort((a, b) => a.distance - b.distance);
-      const { node: current } = pq.shift()!;
+      const { node: current, distance: currDist } = pq.shift()!;
 
       if (visited.has(current)) continue;
       visited.add(current);
+      steps.push(`Processing node ${current} (current distance: ${dist[current]})`);
 
       setDistances({ ...dist });
 
@@ -94,7 +98,8 @@ export default function Home() {
         if (visited.has(neighbor)) continue;
 
         const alt = dist[current] + edge.weight;
-        
+        steps.push(`Checking neighbor ${neighbor} via edge (${current}-${neighbor}) with weight ${edge.weight}: alt = ${alt}`);
+
         // Animate exploration
         const edgeKey = `${Math.min(current, neighbor)}-${Math.max(current, neighbor)}`;
         setExploredEdges(prev => new Set([...prev, edgeKey]));
@@ -102,13 +107,17 @@ export default function Home() {
         await new Promise(resolve => setTimeout(resolve, 500));
 
         if (alt < dist[neighbor]) {
+          steps.push(`Found shorter path to ${neighbor}: ${alt} (via ${current})`);
           dist[neighbor] = alt;
           prev[neighbor] = current;
           pq.push({ node: neighbor, distance: alt });
         }
       }
 
-      if (current === end) break;
+      if (current === end) {
+        steps.push(`Reached end node ${end}, stopping algorithm.`);
+        break;
+      }
     }
 
     // Reconstruct path
@@ -119,8 +128,15 @@ export default function Home() {
       current = prev[current];
     }
 
+    if (path.length < 2 || path[0] !== start) {
+      steps.push(`No path found from ${start} to ${end}`);
+    } else {
+      steps.push(`Optimal path: ${path.join(' → ')}`);
+    }
+
+    setAlgoSteps(steps);
     return path;
-  }, []);
+  }, [edges, nodes]);
 
   const runDijkstra = async () => {
     if (selectedStart === null || selectedEnd === null) return;
@@ -250,28 +266,62 @@ export default function Home() {
           />
         </Card>
 
-        {/* Statistics */}
+        {/* Optimization Results Panel */}
         {shortestPath.length > 0 && (
-          <Card className="p-6 mb-8 backdrop-blur-sm bg-white/80 border-0 shadow-xl">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Route Statistics</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-4 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50">
-                <div className="text-2xl font-bold text-indigo-600">
-                  {shortestPath.length - 1}
-                </div>
-                <div className="text-sm text-gray-600">Stops</div>
-              </div>
-              <div className="text-center p-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50">
-                <div className="text-2xl font-bold text-emerald-600">
+          <Card className="p-8 mb-8 panel border-2 border-indigo-400 bg-gradient-to-r from-indigo-50 to-cyan-50 shadow-2xl">
+            <h2 className="text-xl font-semibold text-indigo-700 mb-4 flex items-center">
+              <span className="mr-2"><Truck className="w-5 h-5 text-cyan-500" /></span> Optimization Results
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-indigo-100 p-4 rounded-lg text-center">
+                <div className="text-sm text-indigo-600 font-medium">Total Distance</div>
+                <div className="text-2xl font-bold text-indigo-800">
                   {selectedEnd !== null ? distances[selectedEnd] || '∞' : '∞'}
                 </div>
-                <div className="text-sm text-gray-600">Total Distance</div>
               </div>
-              <div className="text-center p-4 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50">
-                <div className="text-2xl font-bold text-purple-600">
-                  {exploredEdges.size}
+              <div className="bg-cyan-100 p-4 rounded-lg text-center">
+                <div className="text-sm text-cyan-600 font-medium">Path Length</div>
+                <div className="text-2xl font-bold text-cyan-800">
+                  {shortestPath.length - 1}
                 </div>
-                <div className="text-sm text-gray-600">Edges Explored</div>
+              </div>
+              <div className="bg-orange-100 p-4 rounded-lg text-center">
+                <div className="text-sm text-orange-600 font-medium">Delivery Time</div>
+                <div className="text-2xl font-bold text-orange-800">
+                  {selectedEnd !== null && distances[selectedEnd] ? Math.round(distances[selectedEnd] * 2) + ' min' : 'N/A'}
+                </div>
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="text-sm font-medium text-gray-700 mb-2">Optimal Path Sequence</div>
+              <div className="bg-gray-50 p-3 rounded-md text-sm text-gray-800">
+                {shortestPath.map((nodeId, idx) => {
+                  const node = nodes.find(n => n.id === nodeId);
+                  return (
+                    <span key={nodeId}>
+                      {idx > 0 && <span> &rarr; </span>}
+                      {node ? `${node.name} (${nodeId})` : nodeId}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="text-sm font-medium text-gray-700 mb-2">Edges Explored</div>
+              <div className="bg-gray-50 p-3 rounded-md text-sm text-gray-800">
+                {exploredEdges.size}
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="text-sm font-medium text-gray-700 mb-2">Algorithm Steps</div>
+              <div className="bg-gray-50 p-3 rounded-md text-xs text-gray-800 font-mono overflow-auto max-h-40" style={{ whiteSpace: 'pre-line' }}>
+                {algoSteps.length > 0 ? (
+                  algoSteps.map((step, idx) => (
+                    <div key={idx}>{step}</div>
+                  ))
+                ) : (
+                  <span>No steps available.</span>
+                )}
               </div>
             </div>
           </Card>
