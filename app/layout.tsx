@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Food Delivery Optimizer',
-  description: 'Visualize Dijkstra's algorithm',
+  description: "Visualize Dijkstra's algorithm",
 };
 
 export default function RootLayout({
